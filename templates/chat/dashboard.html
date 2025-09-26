@@ -1,0 +1,278 @@
+{% extends 'base.html' %}
+{% block title %}AI Assistant{% endblock %}
+{% block content %}
+<div class="container-fluid h-100">
+    <div class="row h-100">
+        <!-- Sidebar with Individual Delete Functionality -->
+        <div class="col-md-3 col-lg-2 bg-dark text-white p-0" id="sidebar">
+            <div class="d-flex flex-column h-100">
+                <div class="p-3">
+                    <a href="{% url 'new_thread' %}" class="btn btn-outline-light w-100">
+                        <i class="fas fa-plus me-2"></i>New Chat
+                    </a>
+                </div>
+                
+                <!-- Chat History with Individual Delete Buttons -->
+                <div class="flex-grow-1 overflow-auto px-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <small class="text-muted">Recent Chats</small>
+                        {% if threads %}
+                        <button class="btn btn-sm btn-outline-danger" id="clear-all-btn" title="Clear all chats">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        {% endif %}
+                    </div>
+                    
+                    <div id="chat-list">
+                        {% if threads %}
+                            {% for thread in threads %}
+                            <div class="chat-item mb-2" data-thread-id="{{ thread.id }}">
+                                <div class="d-flex align-items-center">
+                                    <!-- Chat Link -->
+                                    <a href="{% url 'chat_thread' thread.id %}" 
+                                       class="text-white text-decoration-none flex-grow-1 chat-link">
+                                        <div class="p-2 rounded hover-bg-secondary">
+                                            <div class="small fw-medium text-truncate overflow-x-hidden">
+                                                {{ thread.title|default:"New Conversation"|truncatechars:30}}
+                                            </div>
+                                            <div class="text-muted" style="font-size: 0.75rem;">
+                                                {{ thread.updated_at|date:"M d, H:i" }}
+                                            </div>
+                                        </div>
+                                    </a>
+                                    
+                                    <!-- Individual Delete Button -->
+                                    <button class="btn btn-sm text-danger delete-thread-btn ms-2" 
+                                            data-thread-id="{{ thread.id }}" 
+                                            title="Delete this chat"
+                                            style="opacity: 0; transition: opacity 0.2s ease;">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="text-center text-muted py-4" id="no-chats-message">
+                                <i class="fas fa-comment-dots fa-2x mb-2"></i>
+                                <p class="small">No conversations yet</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Documents Section -->
+                <div class="border-top p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <small class="text-muted">Documents</small>
+                        <a href="{% url 'documents' %}" class="btn btn-sm btn-outline-light">
+                            <i class="fas fa-folder"></i>
+                        </a>
+                    </div>
+                    
+                    {% if collections %}
+                        {% for collection in collections|slice:":3" %}
+                        <div class="mb-2">
+                            <a href="{% url 'collection_detail' collection.id %}" 
+                               class="text-white text-decoration-none">
+                                <div class="p-2 rounded hover-bg-secondary">
+                                    <div class="small fw-medium text-truncate">
+                                        <i class="fas fa-folder me-1"></i>{{ collection.name }}
+                                    </div>
+                                    <div class="text-muted" style="font-size: 0.75rem;">
+                                        {{ collection.documents.count }} documents
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                        {% endfor %}
+                        {% if collections|length > 3 %}
+                        <div class="text-center">
+                            <a href="{% url 'documents' %}" class="text-muted small">
+                                View all ({{ collections|length }})
+                            </a>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="text-center text-muted py-2">
+                            <a href="{% url 'create_collection' %}" class="text-decoration-none text-muted">
+                                <i class="fas fa-plus-circle me-1"></i>
+                                <small>Add Documents</small>
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+
+                
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="col-md-9 col-lg-10 d-flex align-items-center justify-content-center">
+            <div class="text-center">
+                <div class="mb-4">
+                    <h2 class="fw-light">How can I help you today?</h2>
+                    <p class="text-muted">Choose an option below to get started</p>
+                </div>
+
+                <div class="row justify-content-center">
+                    <div class="col-sm-6 col-md-4 mb-3">
+                        <a href="{% url 'new_thread' %}" class="btn btn-outline-primary btn-lg w-100 h-100 d-flex flex-column justify-content-center">
+                            <i class="fas fa-comments fa-2x mb-2"></i>
+                            <div class="fw-medium">Start New Chat</div>
+                            <small class="text-muted">Have a conversation with AI</small>
+                        </a>
+                    </div>
+                    
+                    <div class="col-sm-6 col-md-4 mb-3">
+                        <a href="{% url 'documents' %}" class="btn btn-outline-success btn-lg w-100 h-100 d-flex flex-column justify-content-center">
+                            <i class="fas fa-file-upload fa-2x mb-2"></i>
+                            <div class="fw-medium">Upload Documents</div>
+                            <small class="text-muted">Chat about your files</small>
+                        </a>
+                    </div>
+                </div>
+
+                {% if threads %}
+                <div class="mt-4">
+                    <h5 class="fw-light mb-3">Continue Recent Conversation</h5>
+                    <div class="row justify-content-center">
+                        {% for thread in threads|slice:":2" %}
+                        <div class="col-md-6 mb-2">
+                            <a href="{% url 'chat_thread' thread.id %}" 
+                               class="btn btn-outline-secondary w-100 text-start">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <div class="fw-medium text-truncate">{{ thread.title |truncatechars:15}}</div>
+                                        <small class="text-muted">{{ thread.messages.count }} messages</small>
+                                    </div>
+                                    <i class="fas fa-arrow-right"></i>
+                                </div>
+                            </a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.hover-bg-secondary:hover {
+    background-color: rgba(108, 117, 125, 0.2) !important;
+}
+
+.chat-item {
+    transition: all 0.2s ease;
+}
+
+.chat-item:hover .delete-thread-btn {
+    opacity: 1 !important;
+}
+
+#sidebar {
+    min-height: 100vh;
+}
+
+.delete-thread-btn:hover {
+    background-color: rgba(220, 53, 69, 0.1) !important;
+}
+</style>
+
+<script>
+$(document).ready(function() {
+    // Individual Chat Deletion
+    $('.delete-thread-btn').click(function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const threadId = $(this).data('thread-id');
+        const chatItem = $(this).closest('.chat-item');
+        const chatTitle = chatItem.find('.fw-medium').text().trim();
+        
+        if (confirm(`Delete "${chatTitle}"?`)) {
+            // Show loading state
+            $(this).html('<i class="fas fa-spinner fa-spin"></i>');
+            
+            $.post(`{% url "delete_thread" 0 %}`.replace('0', threadId))
+            .done(function(response) {
+                if (response.success) {
+                    // Fade out and remove the chat item
+                    chatItem.fadeOut(300, function() {
+                        $(this).remove();
+                        
+                        // Check if no more chats remain
+                        if ($('.chat-item').length === 0) {
+                            $('#chat-list').html(`
+                                <div class="text-center text-muted py-4" id="no-chats-message">
+                                    <i class="fas fa-comment-dots fa-2x mb-2"></i>
+                                    <p class="small">No conversations yet</p>
+                                </div>
+                            `);
+                            $('#clear-all-btn').hide();
+                        }
+                    });
+                    
+                    // Show success message (optional)
+                    if (response.message) {
+                        showNotification(response.message, 'success');
+                    }
+                } else {
+                    alert(response.error || 'Error deleting conversation');
+                    // Reset button
+                    $(this).html('<i class="fas fa-times"></i>');
+                }
+            })
+            .fail(function() {
+                alert('Error deleting conversation');
+                // Reset button
+                $(this).html('<i class="fas fa-times"></i>');
+            });
+        }
+    });
+
+    // Clear All Chats
+    $('#clear-all-btn').click(function() {
+        if (confirm('Delete all conversations? This cannot be undone.')) {
+            // Show loading state
+            $(this).html('<i class="fas fa-spinner fa-spin"></i>');
+            
+            $.post('{% url "clear_all_chats" %}')
+            .done(function(response) {
+                if (response.success) {
+                    location.reload();
+                } else {
+                    alert(response.error || 'Error clearing conversations');
+                    // Reset button
+                    $(this).html('<i class="fas fa-trash"></i>');
+                }
+            })
+            .fail(function() {
+                alert('Error clearing conversations');
+                // Reset button
+                $(this).html('<i class="fas fa-trash"></i>');
+            });
+        }
+    });
+
+    // Optional: Show notification function
+    function showNotification(message, type) {
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+        const notification = $(`
+            <div class="alert ${alertClass} alert-dismissible fade show position-fixed" 
+                 style="top: 20px; right: 20px; z-index: 1060; min-width: 300px;">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `);
+        $('body').append(notification);
+        
+        // Auto remove after 3 seconds
+        setTimeout(() => {
+            notification.alert('close');
+        }, 3000);
+    }
+});
+</script>
+{% endblock %}

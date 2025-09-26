@@ -1,0 +1,272 @@
+{% extends 'base.html' %}
+
+{% block title %}Upload Document - {{ collection.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <div class="d-flex align-items-center">
+                        <a href="{% url 'collection_detail' collection.id %}" class="text-white me-3">
+                            <i class="fas fa-arrow-left"></i>
+                        </a>
+                        <div>
+                            <h4 class="mb-0">
+                                <i class="fas fa-upload me-2"></i>Upload Document
+                            </h4>
+                            <small>to {{ collection.name }}</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card-body p-4">
+                    <!-- Upload Form -->
+                    <form method="post" enctype="multipart/form-data" id="upload-form">
+                        {% csrf_token %}
+                        
+                        <!-- File Upload Area -->
+                        <div class="border-2 border-dashed border-muted rounded p-5 text-center mb-4" 
+                             style="border-style: dashed !important;" id="drop-zone">
+                            <div class="mb-3">
+                                <i class="fas fa-cloud-upload-alt fa-4x text-muted"></i>
+                            </div>
+                            <div class="mb-3">
+                                <label for="file" class="btn btn-outline-success btn-lg">
+                                    <i class="fas fa-file-plus me-2"></i>Choose File
+                                </label>
+                                <input id="file" name="file" type="file" class="d-none" 
+                                       accept=".pdf,.docx,.doc,.txt" required>
+                            </div>
+                            <p class="text-muted mb-2">or drag and drop your file here</p>
+                            <div class="small text-muted">
+
+                            </div>
+                        </div>
+
+                        <!-- Selected File Display -->
+                        <div id="file-info" class="alert alert-light d-none border">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-file-alt text-success me-3 fa-2x"></i>
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1" id="file-name"></h6>
+                                    <div class="d-flex align-items-center">
+                                        <small class="text-muted me-3" id="file-size"></small>
+                                        <span class="badge bg-success" id="file-type"></span>
+                                    </div>
+                                </div>
+                                <button type="button" id="remove-file" class="btn btn-sm btn-outline-danger">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Processing Progress -->
+                        <div id="processing-status" class="d-none mb-4">
+                            <div class="alert alert-info">
+                                <div class="d-flex align-items-center">
+                                    <div class="spinner-border spinner-border-sm text-info me-3" role="status">
+                                        <span class="visually-hidden">Processing...</span>
+                                    </div>
+                                    <div>
+                                        <strong>Processing your document...</strong><br>
+                                        <small>This may take 30-60 seconds depending on file size</small>
+                                    </div>
+                                </div>
+                                <div class="progress mt-2" style="height: 6px;">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                         role="progressbar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div class="d-flex gap-2">
+                            <a href="{% url 'collection_detail' collection.id %}" 
+                               class="btn btn-outline-secondary flex-fill">
+                                <i class="fas fa-arrow-left me-1"></i>Back to Collection
+                            </a>
+                            <button type="submit" id="upload-btn" class="btn btn-success flex-fill" disabled>
+                                <i class="fas fa-upload me-1"></i>Upload & Process
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+    
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    const fileInput = $('#file');
+    const fileInfo = $('#file-info');
+    const fileName = $('#file-name');
+    const fileSize = $('#file-size');
+    const fileType = $('#file-type');
+    const removeBtn = $('#remove-file');
+    const uploadBtn = $('#upload-btn');
+    const dropZone = $('#drop-zone');
+    const processingStatus = $('#processing-status');
+    const progressBar = $('.progress-bar');
+
+    // File type icons mapping
+    const fileIcons = {
+        'pdf': 'fas fa-file-pdf text-danger',
+        'docx': 'fas fa-file-word text-primary',
+        'doc': 'fas fa-file-word text-primary', 
+        'txt': 'fas fa-file-alt text-secondary'
+    };
+
+    // File selection handler
+    fileInput.change(function() {
+        const file = this.files[0];
+        if (file) {
+            if (validateFile(file)) {
+                displayFileInfo(file);
+            }
+        }
+    });
+
+    // Validate file
+    function validateFile(file) {
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        const allowedTypes = ['pdf', 'docx', 'doc', 'txt'];
+        const fileExtension = file.name.split('.').pop().toLowerCase();
+
+        if (!allowedTypes.includes(fileExtension)) {
+            showError('File type not supported. Please upload PDF, DOCX, DOC, or TXT files.');
+            return false;
+        }
+
+        if (file.size > maxSize) {
+            showError('File size too large. Maximum size is 10MB.');
+            return false;
+        }
+
+        return true;
+    }
+
+    // Display file information
+    function displayFileInfo(file) {
+        const extension = file.name.split('.').pop().toLowerCase();
+        const icon = fileIcons[extension] || 'fas fa-file';
+        
+        fileName.text(file.name);
+        fileSize.text(formatFileSize(file.size));
+        fileType.text(extension.toUpperCase()).removeClass().addClass(`badge bg-${getTypeColor(extension)}`);
+        
+        // Update icon
+        fileInfo.find('.fa-file-alt').removeClass().addClass(icon);
+        
+        fileInfo.removeClass('d-none');
+        uploadBtn.prop('disabled', false);
+    }
+
+    // Get color for file type
+    function getTypeColor(extension) {
+        const colors = {
+            'pdf': 'danger',
+            'docx': 'primary',
+            'doc': 'primary',
+            'txt': 'secondary'
+        };
+        return colors[extension] || 'secondary';
+    }
+
+    // Remove file handler
+    removeBtn.click(function() {
+        fileInput.val('');
+        fileInfo.addClass('d-none');
+        uploadBtn.prop('disabled', true);
+        processingStatus.addClass('d-none');
+        hideError();
+    });
+
+    // Format file size
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    // Form submission handler
+    $('#upload-form').submit(function(e) {
+        uploadBtn.html('<i class="fas fa-spinner fa-spin me-1"></i>Uploading...').prop('disabled', true);
+        processingStatus.removeClass('d-none');
+        
+        // Animate progress bar
+        let progress = 0;
+        const progressInterval = setInterval(function() {
+            progress += Math.random() * 15;
+            if (progress > 95) progress = 95;
+            progressBar.css('width', progress + '%');
+        }, 500);
+
+        // Clear interval on form completion (will be handled by page redirect)
+        setTimeout(function() {
+            clearInterval(progressInterval);
+        }, 10000);
+    });
+
+    // Drag and drop functionality
+    dropZone.on('dragover dragenter', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        $(this).addClass('bg-light border-success');
+    });
+
+    dropZone.on('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        $(this).removeClass('bg-light border-success');
+    });
+
+    dropZone.on('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        $(this).removeClass('bg-light border-success');
+        
+        const files = e.originalEvent.dataTransfer.files;
+        if (files.length > 0) {
+            const file = files[0];
+            if (validateFile(file)) {
+                fileInput[0].files = files;
+                displayFileInfo(file);
+            }
+        }
+    });
+
+    // Click to select file
+    dropZone.click(function() {
+        fileInput.click();
+    });
+
+    // File input label click handler
+    $('label[for="file"]').click(function(e) {
+        e.stopPropagation();
+    });
+
+    // Error handling
+    function showError(message) {
+        hideError();
+        const errorHtml = `
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        $('#upload-form').before(errorHtml);
+    }
+
+    function hideError() {
+        $('.alert-danger').remove();
+    }
+});
+</script>
+{% endblock %}

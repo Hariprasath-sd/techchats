@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block title %}Documents - ChatGPT RAG{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+            <i class="fas fa-folder-open me-2 text-success"></i>Document Collections
+        </h2>
+        <a href="{% url 'create_collection' %}" class="btn btn-success">
+            <i class="fas fa-plus me-2"></i>Create Collection
+        </a>
+    </div>
+
+    {% if collections %}
+        <div class="row">
+            {% for collection in collections %}
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex align-items-start mb-3">
+                            <div class="bg-success text-white rounded p-2 me-3">
+                                <i class="fas fa-folder"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <h5 class="card-title mb-1">{{ collection.name }}</h5>
+                                <p class="card-text text-muted small">
+                                    {{ collection.description|default:"No description"|truncatewords:15 }}
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div class="row text-center mb-3">
+                            <div class="col-6">
+                                <div class="border-end">
+                                    <h4 class="mb-1 text-primary">{{ collection.documents.count }}</h4>
+                                    <small class="text-muted">Documents</small>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <h4 class="mb-1 text-info">{{ collection.created_at|date:"M d" }}</h4>
+                                <small class="text-muted">Created</small>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-auto">
+                            <div class="btn-group w-100" role="group">
+                                <a href="{% url 'collection_detail' collection.id %}" 
+                                   class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-eye me-1"></i>View
+                                </a>
+                                <a href="{% url 'upload_document' collection.id %}" 
+                                   class="btn btn-success btn-sm">
+                                    <i class="fas fa-upload me-1"></i>Upload
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-center py-5">
+            <div class="mb-4">
+                <i class="fas fa-folder-plus fa-5x text-muted mb-4"></i>
+                <h3 class="text-muted">No collections yet</h3>
+                <p class="text-muted lead">Create your first document collection to start uploading files.</p>
+            </div>
+            <a href="{% url 'create_collection' %}" class="btn btn-success btn-lg">
+                <i class="fas fa-plus me-2"></i>Create Your First Collection
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

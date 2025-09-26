@@ -1,0 +1,366 @@
+{% extends 'base.html' %}
+{% block title %}Chat - AI Assistant{% endblock %}
+{% block content %}
+<div class="container-fluid h-100">
+    <div class="row h-100">
+        <!-- Mobile Sidebar Toggle -->
+        <div class="d-md-none">
+            <button class="btn btn-primary sidebar-toggle m-2" onclick="toggleSidebar()">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-md-3 col-lg-2 bg-dark text-white p-0" id="sidebar">
+            <div class="d-flex flex-column h-100">
+                <!-- Header -->
+                <div class="p-3 border-bottom border-secondary">
+                    <a href="{% url 'dashboard' %}" class="text-white text-decoration-none">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                </div>
+
+                <!-- New Chat Button -->
+                <div class="p-3">
+                    <a href="{% url 'new_thread' %}" class="btn btn-outline-light w-100">
+                        <i class="fas fa-plus me-2"></i>New Chat
+                    </a>
+                </div>
+
+                <!-- RAG Selection -->
+                <div class="px-3">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="ragToggle">
+                        <label class="form-check-label text-white" for="ragToggle">
+                            Document Q&A Mode
+                        </label>
+                    </div>
+                    
+                    <div id="collectionSelect" class="mb-3" style="display:none;">
+                        <select class="form-select form-select-sm" id="collectionId">
+                            <option value="">Select Collection</option>
+                            {% for collection in collections %}
+                            <option value="{{ collection.id }}">{{ collection.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Current Chat Info -->
+                <div class="px-3 mb-3">
+                    <div class="bg-secondary p-2 rounded">
+                        <small class="text-white-50">Current Chat</small>
+                        <div class="text-white small fw-medium">{{ thread.title|default:"New Conversation" }}</div>
+                        <div class="text-white-50 small">{{ thread.messages.count }} messages</div>
+                    </div>
+                </div>
+
+                <!-- Delete Current Chat Button -->
+                <div class="mt-auto p-3 border-top border-secondary">
+                    <button class="btn btn-outline-danger btn-sm w-100" id="deleteCurrentChatBtn" 
+                            data-thread-id="{{ thread.id }}">
+                        <i class="fas fa-trash me-1"></i>Delete This Chat
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="col-md-9 col-lg-10 d-flex flex-column chat-container">
+            <!-- Messages -->
+            <div class="messages-area p-3" id="messagesArea">
+                {% for message in messages %}
+                <div class="d-flex {% if message.is_user %}justify-content-end{% else %}justify-content-start{% endif %} mb-3">
+                    <div class="message-bubble p-3 {% if message.is_user %}user-message{% else %}ai-message{% endif %}">
+                        <div class="message-content">{{ message.content|linebreaks }}</div>
+                        {% if message.source_documents %}
+                        <div class="mt-2 pt-2 border-top">
+                            <small class="text-muted">
+                                <i class="fas fa-book me-1"></i>Sources:
+                                {% for source in message.source_documents %}
+                                    {{ source.filename }}{% if not forloop.last %}, {% endif %}
+                                {% endfor %}
+                            </small>
+                        </div>
+                        {% endif %}
+                        <div class="text-end mt-1">
+                            <small class="{% if message.is_user %}text-white-50{% else %}text-muted{% endif %}">
+                                {{ message.timestamp|date:"H:i" }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="text-center text-muted py-5">
+                    <i class="fas fa-robot fa-3x mb-3"></i>
+                    <h5>Start a conversation</h5>
+                    <p>Type your message below to begin chatting with the AI assistant</p>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Input Area -->
+            <div class="p-3 border-top">
+                <form id="chatForm" class="d-flex gap-2">
+                    {% csrf_token %}
+                    <div class="flex-grow-1">
+                        <textarea id="messageInput" class="form-control" rows="1" 
+                                  placeholder="Type your message..." required
+                                  style="resize: none; min-height: 38px; max-height: 120px;"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="sendButton">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.messages-area {
+    overflow-y: auto;
+    scroll-behavior: smooth;
+}
+
+.message-bubble {
+    max-width: 75%;
+    word-wrap: break-word;
+}
+
+#messageInput {
+    transition: height 0.2s ease;
+}
+
+.typing-indicator {
+    display: none;
+}
+
+.typing-indicator.show {
+    display: block;
+}
+
+.typing-dots {
+    display: flex;
+    gap: 3px;
+    align-items: center;
+}
+
+.typing-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #6c757d;
+    animation: typing 1.4s infinite ease-in-out;
+}
+
+.typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+.typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes typing {
+    0%, 80%, 100% {
+        transform: scale(0);
+        opacity: 0.5;
+    }
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+</style>
+
+<script>
+$(document).ready(function() {
+    const messagesArea = $('#messagesArea');
+    const messageInput = $('#messageInput');
+    const ragToggle = $('#ragToggle');
+    const collectionSelect = $('#collectionSelect');
+    
+    // Auto-resize textarea
+    messageInput.on('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+
+    // Show/hide collection selector
+    ragToggle.change(function() {
+        if (this.checked) {
+            collectionSelect.show();
+        } else {
+            collectionSelect.hide();
+        }
+    });
+
+    // Handle form submission
+    $('#chatForm').submit(function(e) {
+        e.preventDefault();
+        
+        const content = messageInput.val().trim();
+        if (!content) return;
+
+        const useRag = ragToggle.is(':checked');
+        const collectionId = $('#collectionId').val();
+
+        if (useRag && !collectionId) {
+            alert('Please select a document collection for Q&A mode.');
+            return;
+        }
+
+        // Disable input during processing
+        messageInput.prop('disabled', true);
+        $('#sendButton').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+
+        // Add user message to UI immediately
+        addMessage(content, true, new Date());
+        messageInput.val('').css('height', 'auto');
+
+        // Show typing indicator
+        showTypingIndicator();
+
+        // Send to server
+        $.ajax({
+            url: '{% url "send_message" thread.id %}',
+            method: 'POST',
+            data: JSON.stringify({
+                content: content,
+                use_rag: useRag,
+                collection_id: collectionId
+            }),
+            contentType: 'application/json',
+            success: function(response) {
+                hideTypingIndicator();
+                
+                if (response.success) {
+                    // Add AI response
+                    addMessage(
+                        response.ai_message.content, 
+                        false, 
+                        response.ai_message.timestamp,
+                        response.ai_message.sources
+                    );
+                } else {
+                    addMessage('Sorry, there was an error processing your message.', false, new Date());
+                }
+            },
+            error: function() {
+                hideTypingIndicator();
+                addMessage('Sorry, there was an error sending your message.', false, new Date());
+            },
+            complete: function() {
+                // Re-enable input
+                messageInput.prop('disabled', false).focus();
+                $('#sendButton').prop('disabled', false).html('<i class="fas fa-paper-plane"></i>');
+            }
+        });
+    });
+
+    // Delete current chat functionality
+    $('#deleteCurrentChatBtn').click(function() {
+        const threadId = $(this).data('thread-id');
+        
+        if (confirm('Are you sure you want to delete this conversation?')) {
+            // Show loading state
+            $(this).html('<i class="fas fa-spinner fa-spin"></i> Deleting...');
+            
+            $.post(`{% url "delete_thread" 0 %}`.replace('0', threadId))
+            .done(function(response) {
+                if (response.success) {
+                    // Redirect to dashboard after successful deletion
+                    window.location.href = '{% url "dashboard" %}';
+                } else {
+                    alert(response.error || 'Error deleting chat');
+                    // Reset button
+                    $('#deleteCurrentChatBtn').html('<i class="fas fa-trash me-1"></i>Delete This Chat');
+                }
+            })
+            .fail(function() {
+                alert('Error deleting chat');
+                // Reset button
+                $('#deleteCurrentChatBtn').html('<i class="fas fa-trash me-1"></i>Delete This Chat');
+            });
+        }
+    });
+
+    // Enter key to send message
+    messageInput.keydown(function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            $('#chatForm').submit();
+        }
+    });
+
+    function addMessage(content, isUser, timestamp, sources = null) {
+        const messageClass = isUser ? 'user-message' : 'ai-message';
+        const justifyClass = isUser ? 'justify-content-end' : 'justify-content-start';
+        const timeColor = isUser ? 'text-white-50' : 'text-muted';
+        
+        let sourcesHtml = '';
+        if (sources && sources.length > 0) {
+            const sourceNames = sources.map(s => s.filename).join(', ');
+            sourcesHtml = `
+                <div class="mt-2 pt-2 border-top">
+                    <small class="text-muted">
+                        <i class="fas fa-book me-1"></i>Sources: ${sourceNames}
+                    </small>
+                </div>
+            `;
+        }
+
+        const messageHtml = `
+            <div class="d-flex ${justifyClass} mb-3">
+                <div class="message-bubble p-3 ${messageClass}">
+                    <div class="message-content">${content.replace(/\n/g, '<br>')}</div>
+                    ${sourcesHtml}
+                    <div class="text-end mt-1">
+                        <small class="${timeColor}">${formatTime(timestamp)}</small>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        messagesArea.append(messageHtml);
+        scrollToBottom();
+    }
+
+    function showTypingIndicator() {
+        const typingHtml = `
+            <div class="d-flex justify-content-start mb-3 typing-indicator" id="typingIndicator">
+                <div class="message-bubble p-3 ai-message">
+                    <div class="typing-dots">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            </div>
+        `;
+        messagesArea.append(typingHtml);
+        scrollToBottom();
+    }
+
+    function hideTypingIndicator() {
+        $('#typingIndicator').remove();
+    }
+
+    function scrollToBottom() {
+        messagesArea.scrollTop(messagesArea[0].scrollHeight);
+    }
+
+    function formatTime(timestamp) {
+        if (typeof timestamp === 'string') return timestamp;
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            hour12: false 
+        });
+    }
+
+    // Auto-scroll to bottom on page load
+    scrollToBottom();
+
+    // Mobile sidebar toggle
+    window.toggleSidebar = function() {
+        $('#sidebar').toggleClass('show');
+    };
+});
+</script>
+{% endblock %}
