@@ -9,3 +9,4 @@ python-decouple
 Pillow
 pypdf
 gunicorn
+langchain-community
